@@ -1,7 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore, doc, setDoc, getDoc, onSnapshot, arrayUnion } from "firebase/firestore";
 import { initializeAppCheck, CustomProvider } from "firebase/app-check";
-import { getAI, getGenerativeModel, GoogleAIBackend } from "firebase/ai";
+import { getAI, getGenerativeModel, GoogleAIBackend, ResponseModality } from "firebase/ai";
 
 // ============================================================================
 // APP CHECK DEBUG CONFIGURATION
@@ -238,11 +238,11 @@ export const analyseTodayMoodsWithAI = async (moods) => {
   const firebaseApp = getFirebaseApp();
   const ai = getAI(firebaseApp, { backend: new GoogleAIBackend() });
 
-  const prompt = `Here are the emotions and mood words a person recorded throughout their day today: ${moods.join(", ")}.
-Analyze all these moods together and summarize their day's emotional vibe and sentiment in exactly ONE thoughtful, and insightful sentence. Do not include markdown formatting, bullet points, greetings, or extra sentences. Just return the single sentence.`;
+  const prompt = `The following words represent the emotions and moods recorded by all the attendees at the event: ${moods.join(", ")}. Analyze all these inputs together and summarize the overall mood and emotional vibe of the event in exactly ONE thoughtful, insightful sentence. Do not include markdown formatting, bullet points, greetings, or extra sentences. Just return the single sentence.`;
 
   // Active model candidates supported on Firebase AI Logic (Gemini Developer API)
   const modelsToTry = [
+    'gemini-3.7-flash',
     'gemini-3.8-flash',
     'gemini-3.8-flash-lite',
   ];
@@ -290,4 +290,67 @@ Analyze all these moods together and summarize their day's emotional vibe and se
   }
 
   throw new Error("Unable to analyze moods with AI.");
+};
+
+/**
+ * Generates a single visual artwork representing all recorded moods for today.
+ * If analysisText is provided, it uses the 1-sentence analyzed sentiment;
+ * otherwise it uses the list of all recorded moods.
+ * Tries Firebase AI Logic (gemini-2.5-flash-image) first, and seamlessly falls
+ * back to high-resolution AI art engine if image preview quota is unallocated.
+ */
+export const generateMoodImage = async ({ moods = [], analysisText = null }) => {
+  if ((!moods || moods.length === 0) && !analysisText) {
+    throw new Error("No moods or analysis available to generate an image.");
+  }
+
+  const prompt = analysisText
+    ? `A breathtaking, vibrant artistic conceptual illustration capturing this emotional sentiment: "${analysisText}". Mood elements: ${moods.join(', ')}. Dreamlike atmospheric lighting, cinematic composition, surreal digital art, ultra-high resolution, 8k wallpaper quality, emotional visual masterpiece.`
+    : `A breathtaking, harmonious and expressive artistic conceptual illustration blending all these emotions together: ${moods.join(', ')}. Vibrant atmospheric lighting, dreamlike colors, abstract surreal digital painting, high resolution masterpiece.`;
+
+  // 1. Try Firebase AI Logic with ResponseModality.IMAGE
+  try {
+    const firebaseApp = getFirebaseApp();
+    const ai = getAI(firebaseApp, { backend: new GoogleAIBackend() });
+    const imageModel = getGenerativeModel(ai, {
+      model: 'gemini-3.1-flash-lite-image',
+      generationConfig: {
+        responseModalities: [ResponseModality.IMAGE],
+      },
+    });
+
+    const result = await imageModel.generateContent(prompt);
+    const candidates = result.response?.candidates || [];
+    for (const cand of candidates) {
+      for (const part of cand.content?.parts || []) {
+        if (part.inlineData) {
+          return {
+            url: `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`,
+            source: 'Firebase AI Logic (Gemini)',
+            prompt,
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Firebase AI Logic direct image quota not enabled, using AI art engine fallback:", err?.message || err);
+  }
+
+  // 2. High-resolution AI generative art engine fallback
+  const seed = Math.floor(Math.random() * 1000000);
+  const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&seed=${seed}`;
+
+  // Preload image to guarantee instantaneous, crisp display
+  await new Promise((resolve, reject) => {
+    const img = new window.Image();
+    img.onload = () => resolve(imageUrl);
+    img.onerror = () => reject(new Error("Image generation service timed out. Please try again."));
+    img.src = imageUrl;
+  });
+
+  return {
+    url: imageUrl,
+    source: 'AI Mood Art Engine',
+    prompt,
+  };
 };

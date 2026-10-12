@@ -13,14 +13,19 @@ import {
   Copy,
   Check,
   Quote,
-  Zap
+  Zap,
+  Palette,
+  Download,
+  RefreshCw,
+  Image as ImageIcon
 } from 'lucide-react';
 import {
   saveMoodToFirestore,
   getTodayDocId,
   getTodayMoodsFromFirestore,
   subscribeToTodayMoods,
-  analyseTodayMoodsWithAI
+  analyseTodayMoodsWithAI,
+  generateMoodImage
 } from './firebase';
 
 // Web Audio API synthesized retro sound effects (no external audio files needed!)
@@ -117,6 +122,9 @@ export default function App() {
   const [aiAnalysis, setAiAnalysis] = useState(null);
   const [aiError, setAiError] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [generatedImage, setGeneratedImage] = useState(null);
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [imageError, setImageError] = useState(null);
 
   const todayDocId = getTodayDocId();
 
@@ -250,6 +258,53 @@ export default function App() {
     } finally {
       setIsAnalysing(false);
     }
+  };
+
+  const handleGenerateImage = async () => {
+    playSound('click');
+    setIsGeneratingImage(true);
+    setImageError(null);
+
+    try {
+      let moods = todaysMoods;
+      if (!moods || moods.length === 0) {
+        moods = await getTodayMoodsFromFirestore(todayDocId);
+      }
+
+      if ((!moods || moods.length === 0) && !aiAnalysis?.text) {
+        setImageError("No moods logged yet! Please record at least one mood first on the left to generate an image.");
+        playSound('error');
+        setIsGeneratingImage(false);
+        return;
+      }
+
+      // If we have a mood analysed text, use it to generate the image; else use the moods.
+      const imgResult = await generateMoodImage({
+        moods: moods || [],
+        analysisText: aiAnalysis?.text || null,
+      });
+
+      setGeneratedImage(imgResult);
+      playSound('success');
+      triggerConfetti();
+    } catch (err) {
+      console.error("Image generation error:", err);
+      playSound('error');
+      setImageError(err.message || "Failed to generate mood image.");
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
+  const handleDownloadImage = () => {
+    if (!generatedImage?.url) return;
+    playSound('click');
+    const a = document.createElement('a');
+    a.href = generatedImage.url;
+    a.download = `mood-artwork-${todayDocId}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   return (
@@ -665,16 +720,162 @@ export default function App() {
                 </div>
               )}
             </div>
+          </div>
 
-            {/* Bottom Card Footer Info */}
-            <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-500">
-              <span className="flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-pink-400" />
-                Single-sentence AI synthesis
-              </span>
-              <span>Gemini 3.8 Flash</span>
+          {/* Card 2 on Right: AI Mood Canvas (Image Generator) */}
+          <div className="relative rounded-3xl bg-slate-900/90 border-2 border-purple-500/30 p-6 sm:p-7 backdrop-blur-xl game-card-glow overflow-hidden flex flex-col justify-between">
+            {/* Header */}
+            <div>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5 pb-4 border-b border-slate-800/80">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-fuchsia-600 to-rose-500 flex items-center justify-center text-white shadow-md shadow-fuchsia-500/30">
+                    <Palette className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-base sm:text-lg font-black text-white tracking-tight flex items-center gap-2">
+                      AI Mood Canvas
+                      <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-fuchsia-500/15 text-fuchsia-300 border border-fuchsia-500/30">
+                        Visual Synthesis
+                      </span>
+                    </h2>
+                    <p className="text-[11px] text-slate-400">
+                      Generate an artistic illustration for all today's moods
+                    </p>
+                  </div>
+                </div>
+
+                {/* Generate Image Button */}
+                <button
+                  type="button"
+                  onClick={handleGenerateImage}
+                  disabled={isGeneratingImage || (todaysMoods.length === 0 && !aiAnalysis?.text)}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl font-bold text-xs tracking-wider uppercase flex items-center justify-center gap-2 bg-gradient-to-r from-fuchsia-600 via-pink-600 to-rose-600 hover:from-fuchsia-500 hover:via-pink-500 hover:to-rose-500 text-white shadow-lg shadow-pink-600/30 transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shrink-0"
+                >
+                  {isGeneratingImage ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      <span>Generating Art...</span>
+                    </>
+                  ) : generatedImage ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 text-pink-200" />
+                      <span>Regenerate Image</span>
+                    </>
+                  ) : (
+                    <>
+                      <Palette className="w-4 h-4 text-pink-200" />
+                      <span>Generate Image</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Dynamic Content */}
+              {isGeneratingImage ? (
+                /* LOADING ART STATE */
+                <div className="my-8 p-8 rounded-2xl bg-fuchsia-950/30 border border-fuchsia-500/30 text-center flex flex-col items-center justify-center gap-4">
+                  <div className="relative">
+                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-fuchsia-600 to-rose-500 flex items-center justify-center text-white shadow-lg shadow-fuchsia-500/40 animate-pulse">
+                      <ImageIcon className="w-8 h-8" />
+                    </div>
+                    <Loader2 className="w-20 h-20 text-rose-400 animate-spin absolute -top-2 -left-2 pointer-events-none" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-base font-bold text-white">
+                      Generating Your Mood Artwork...
+                    </h3>
+                    <p className="text-xs text-fuchsia-300/80 max-w-sm mx-auto">
+                      {aiAnalysis?.text
+                        ? "Using today's 1-sentence emotional analysis to compose a visual masterpiece."
+                        : `Blending ${todaysMoods.length} recorded mood words into a single artistic piece.`}
+                    </p>
+                  </div>
+                </div>
+              ) : imageError ? (
+                /* ERROR STATE */
+                <div className="my-6 p-5 rounded-2xl bg-rose-950/40 border border-rose-500/40 text-rose-200 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5 text-rose-400 shrink-0" />
+                    <h3 className="text-sm font-bold text-rose-300">Artwork Generation Issue</h3>
+                  </div>
+                  <p className="text-xs leading-relaxed text-rose-200/90 pl-7">
+                    {imageError}
+                  </p>
+                  <div className="pl-7 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleGenerateImage}
+                      className="px-3 py-1.5 rounded-lg bg-rose-900/60 hover:bg-rose-800 text-xs font-semibold text-white border border-rose-700/60 transition-all"
+                    >
+                      Try Again
+                    </button>
+                  </div>
+                </div>
+              ) : generatedImage ? (
+                /* GENERATED ARTWORK DISPLAY */
+                <div className="space-y-4 my-2">
+                  <div className="relative rounded-2xl overflow-hidden border-2 border-fuchsia-500/40 bg-slate-950 shadow-2xl group">
+                    <img
+                      src={generatedImage.url}
+                      alt="AI generated mood artwork"
+                      className="w-full h-72 sm:h-80 object-cover rounded-2xl transition-transform duration-500 group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-transparent pointer-events-none" />
+
+                    {/* Floating Info on Top */}
+                    <div className="absolute top-3 left-3 z-10 flex items-center gap-2">
+                      <span className="px-2.5 py-1 rounded-full bg-slate-950/80 backdrop-blur-md border border-fuchsia-500/40 text-[10px] font-bold text-fuchsia-300">
+                        {aiAnalysis?.text ? "✨ Source: 1-Sentence Analysis" : `🎨 Source: ${todaysMoods.length} Moods`}
+                      </span>
+                    </div>
+
+                    {/* Bottom Actions Overlay */}
+                    <div className="absolute bottom-3 left-3 right-3 z-10 flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-slate-300 font-medium truncate max-w-[60%]">
+                        {aiAnalysis?.text ? `"${aiAnalysis.text.slice(0, 45)}..."` : `${todaysMoods.join(', ')}`}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={handleDownloadImage}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-fuchsia-900/90 border border-fuchsia-500/50 text-xs font-bold text-white shadow-lg backdrop-blur-md transition-all duration-200 transform hover:scale-105"
+                      >
+                        <Download className="w-3.5 h-3.5 text-pink-300" />
+                        <span>Save Art</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* AWAITING IMAGE GENERATION STATE */
+                <div className="my-6 py-8 px-6 rounded-2xl border border-dashed border-slate-800 bg-slate-950/40 text-center flex flex-col items-center justify-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-fuchsia-950/60 border border-fuchsia-800/40 flex items-center justify-center text-fuchsia-300 mb-1">
+                    <Palette className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-sm sm:text-base font-bold text-white">
+                    Create Visual Mood Artwork
+                  </h3>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+                    {aiAnalysis?.text
+                      ? "Your 1-sentence mood analysis is ready! Click below to transform it into a stunning AI artwork."
+                      : todaysMoods.length > 0
+                        ? `You have ${todaysMoods.length} moods recorded! Generate a single image capturing all of them together.`
+                        : "Record moods on the left side to unlock image generation."}
+                  </p>
+
+                  {(todaysMoods.length > 0 || aiAnalysis?.text) && (
+                    <button
+                      type="button"
+                      onClick={handleGenerateImage}
+                      className="mt-2 px-4 py-2 rounded-xl bg-gradient-to-r from-fuchsia-600 to-rose-600 hover:from-fuchsia-500 hover:to-rose-500 text-xs font-bold text-white shadow-md shadow-fuchsia-600/30 transition-all flex items-center gap-2 cursor-pointer"
+                    >
+                      <Palette className="w-3.5 h-3.5 text-pink-200" />
+                      <span>{aiAnalysis?.text ? "Generate from Mood Analysis" : `Generate from ${todaysMoods.length} Moods`}</span>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
-
           </div>
 
         </section>
