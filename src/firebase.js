@@ -304,16 +304,16 @@ export const generateMoodImage = async ({ moods = [], analysisText = null }) => 
     throw new Error("No moods or analysis available to generate an image.");
   }
 
-  const prompt = analysisText
-    ? `A breathtaking, vibrant artistic conceptual illustration capturing this emotional sentiment: "${analysisText}". Mood elements: ${moods.join(', ')}. Dreamlike atmospheric lighting, cinematic composition, surreal digital art, ultra-high resolution, 8k wallpaper quality, emotional visual masterpiece.`
-    : `A breathtaking, harmonious and expressive artistic conceptual illustration blending all these emotions together: ${moods.join(', ')}. Vibrant atmospheric lighting, dreamlike colors, abstract surreal digital painting, high resolution masterpiece.`;
+  const content = analysisText?.trim() ? analysisText.trim() : moods.join(', ');
+
+  const prompt = `A vibrant, high-detail 3D app icon style emoji representing the following scene: "${content}". Features a rounded app-icon container with a soft drop shadow, smooth stylized vector-3D glossy texture, warm ambient lighting, floating miniature symbols relevant to the theme, clean composition, studio lighting, isolated on a transparent background.`;
 
   // 1. Try Firebase AI Logic with ResponseModality.IMAGE
   try {
     const firebaseApp = getFirebaseApp();
     const ai = getAI(firebaseApp, { backend: new GoogleAIBackend() });
     const imageModel = getGenerativeModel(ai, {
-      model: 'gemini-3.1-flash-lite-image',
+      model: 'gemini-3.5-flash-lite',
       generationConfig: {
         responseModalities: [ResponseModality.IMAGE],
       },
