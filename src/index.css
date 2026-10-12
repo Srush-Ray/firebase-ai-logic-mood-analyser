@@ -1,0 +1,36 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: #090a16;
+  background-image: 
+    radial-gradient(circle at 15% 20%, rgba(139, 92, 246, 0.18) 0%, transparent 40%),
+    radial-gradient(circle at 85% 80%, rgba(236, 72, 153, 0.18) 0%, transparent 40%),
+    radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.12) 0%, transparent 50%);
+  background-attachment: fixed;
+}
+
+/* Custom game glow utility */
+.game-card-glow {
+  box-shadow: 0 0 50px -10px rgba(168, 85, 247, 0.35),
+              0 20px 40px -15px rgba(0, 0, 0, 0.8),
+              inset 0 1px 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.neon-btn-glow {
+  box-shadow: 0 0 25px rgba(236, 72, 153, 0.5),
+              0 8px 16px rgba(168, 85, 247, 0.4);
+}
+
+.neon-btn-glow:hover {
+  box-shadow: 0 0 35px rgba(236, 72, 153, 0.8),
+              0 10px 20px rgba(168, 85, 247, 0.6);
+}
