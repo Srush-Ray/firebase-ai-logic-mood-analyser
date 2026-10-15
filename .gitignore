@@ -26,7 +26,8 @@ dist-ssr/
 build/
 *.local
 
-# Environment variables and secrets (keep .env template, ignore local secrets)
+# Environment variables and secrets
+.env
 .env.local
 .env.*.local
 *.json.secret

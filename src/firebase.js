@@ -30,12 +30,12 @@ if (typeof window !== "undefined") {
 // FIREBASE CONFIGURATION
 // ============================================================================
 export const firebaseConfig = {
-  apiKey: "AIzaSyCryqo7AYnbVh4GMtIEM3M9ud_m1qKr8po",
-  authDomain: "web-apps-47374.firebaseapp.com",
-  projectId: "web-apps-47374",
-  storageBucket: "web-apps-47374.firebasestorage.app",
-  messagingSenderId: "908298399919",
-  appId: "1:908298399919:web:fa20c75959c762a0fb245a"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
 // Check whether real credentials have been provided
@@ -43,7 +43,9 @@ export const isFirebaseConfigured = () => {
   return Boolean(
     firebaseConfig.apiKey &&
     firebaseConfig.projectId &&
+    typeof firebaseConfig.apiKey === "string" &&
     firebaseConfig.apiKey.trim() !== "" &&
+    typeof firebaseConfig.projectId === "string" &&
     firebaseConfig.projectId.trim() !== ""
   );
 };
